@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Character Movement Game with Chat</title>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    .info-box {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      width: 300px;
+      height: 510px;
+      background-color: rgba(0, 0, 0, 0.6);
+      color: white;
+      padding: 15px;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+
+    #chat-box {
+      flex-grow: 1;
+      overflow-y: auto;
+      background-color: rgba(255, 255, 255, 0.05);
+      padding: 10px;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .chat-msg {
+      max-width: 75%;
+      padding: 8px 12px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.4;
+      word-wrap: break-word;
+      backdrop-filter: blur(4px);
+    }
+
+    .npc-msg {
+      align-self: flex-start;
+      background-color: rgba(95, 109, 245, 0.4);
+      color: white;
+    }
+
+    .user-msg {
+      align-self: flex-end;
+      background-color: rgba(255, 255, 255, 0.3);
+      color: white;
+    }
+
+    .chat-input-row {
+      display: flex;
+      gap: 5px;
+      margin-top: 10px;
+    }
+
+    #chat-input {
+      flex: 1;
+      padding: 8px;
+      border-radius: 5px;
+      border: none;
+      font-size: 14px;
+    }
+
+    #chat-send {
+      padding: 8px 12px;
+      background-color: #5f6df5;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background-color: rgba(255, 255, 255, 0.3);
+      border: 4px solid rgba(255, 255, 255, 0.4);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(4px);
+    }
+
+    .controls-row {
+      display: flex;
+      gap: 50px;
+    }
+
+    .arrow-btn {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background-color: rgba(255, 255, 255, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 3px solid rgba(255, 255, 255, 0.6);
+      cursor: pointer;
+      transition: background-color 0.2s;
+      backdrop-filter: blur(6px);
+    }
+
+    .arrow-btn:hover {
+      background-color: rgba(255, 255, 255, 0.5);
+    }
+
+    .arrow-up, .arrow-down, .arrow-left, .arrow-right {
+      width: 0;
+      height: 0;
+    }
+
+    .arrow-up {
+      border-left: 10px solid transparent;
+      border-right: 10px solid transparent;
+      border-bottom: 16px solid black;
+    }
+
+    .arrow-down {
+      border-left: 10px solid transparent;
+      border-right: 10px solid transparent;
+      border-top: 16px solid black;
+    }
+
+    .arrow-left {
+      border-top: 10px solid transparent;
+      border-bottom: 10px solid transparent;
+      border-right: 16px solid black;
+    }
+
+    .arrow-right {
+      border-top: 10px solid transparent;
+      border-bottom: 10px solid transparent;
+      border-left: 16px solid black;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="info-box">
+    <div id="chat-box"></div>
+    <div class="chat-input-row">
+      <input type="text" id="chat-input" placeholder="Say something..." />
+      <button id="chat-send">Send</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="arrow-btn" id="up"><div class="arrow-up"></div></div>
+    <div class="controls-row">
+      <div class="arrow-btn" id="left"><div class="arrow-left"></div></div>
+      <div class="arrow-btn" id="right"><div class="arrow-right"></div></div>
+    </div>
+    <div class="arrow-btn" id="down"><div class="arrow-down"></div></div>
+  </div>
+
+  <script>
+    let player;
+    let player2;
+
+    let fixedY;
+    let currentFrame = 1;
+    let walkTimer;
+    let direction = null;
+    let sitTimer;
+    let isSitting = false;
+    let returningFromSecondScene = false;
+
+    const config = {
+      type: Phaser.AUTO,
+      width: window.innerWidth,
+      height: window.innerHeight,
+      physics: {
+        default: 'arcade',
+        arcade: { debug: false }
+      },
+      scene: [MainScene, SecondScene]
+    };
+  
+    const game = new Phaser.Game(config);
+  
+    function MainScene() {
+      Phaser.Scene.call(this, { key: 'MainScene' });
+    }
+    MainScene.prototype = Object.create(Phaser.Scene.prototype);
+    MainScene.prototype.constructor = MainScene;
+  
+    function SecondScene() {
+      Phaser.Scene.call(this, { key: 'SecondScene' });
+    }
+    SecondScene.prototype = Object.create(Phaser.Scene.prototype);
+    SecondScene.prototype.constructor = SecondScene;
+  
+    MainScene.prototype.preload = function () {
+      this.load.image('background', 'assets/background1.jpg');
+      this.load.image('user_ori', 'assets/user_ori.png');
+      this.load.image('npc_stand', 'assets/npc1/npcstand1.png');
+      this.load.image('background2', 'assets/background2.jpeg'); 
+      this.load.image('npc2', 'assets/npc2/npc2stand1.png');     
+      for (let i = 1; i <= 6; i++) {
+        this.load.image(`walk${i}`, `assets/walk${i}.png`);
+      }
+  
+      for (let i = 1; i <= 4; i++) {
+        this.load.image(`jump${i}`, `assets/jump${i}.png`);
+      }
+  
+      this.load.image('happyjump', 'assets/happyjump.png');
+  
+      for (let i = 1; i <= 3; i++) {
+        this.load.image(`sit${i}`, `assets/sit${i}.png`);
+      }
+    };
+  
+    MainScene.prototype.create = function () {
+      this.add.image(config.width / 2, config.height / 2, 'background').setDisplaySize(config.width, config.height);
+  
+      fixedY = config.height - 230;
+      fixedY1 = config.height - 128;
+  
+      player = this.add.sprite(
+  returningFromSecondScene ? -50 : config.width / 2,
+  fixedY,
+  'user_ori'
+).setScale(1);
+
+player.setTexture('user_ori');
+player.flipX = false;
+
+returningFromSecondScene = false;
+
+  
+      const npc = this.add.image(config.width - 230, fixedY1, 'npc_stand').setScale(1.2).setOrigin(1, 1);
+      npc.flipX = true;
+  
+      function startWalking(dir) {
+        if (isSitting) return;
+        direction = dir;
+        if (walkTimer) return;
+        walkTimer = setInterval(() => {
+          currentFrame = (currentFrame % 6) + 1;
+          player.setTexture(`walk${currentFrame}`);
+          if (dir === 'left') {
+            player.x -= 15;
+            player.flipX = true;
+          } else if (dir === 'right') {
+            player.x += 15;
+            player.flipX = false;
+          }
+          player.y = fixedY;
+  
+      
+          if (player.x < -50) {
+            clearInterval(walkTimer);
+            this.scene.start('SecondScene');
+          }
+        }, 100);
+      }
+  
+      function stopWalking() {
+        clearInterval(walkTimer);
+        walkTimer = null;
+        direction = null;
+        if (!isSitting) {
+          player.setTexture('user_ori');
+          player.y = fixedY;
+        }
+      }
+  
+      function performJump() {
+        if (walkTimer || isSitting) return;
+  
+        let jumpFrames = ['jump1', 'jump2', 'jump3', 'jump4', 'happyjump'];
+        let jumpIndex = 0;
+        let jumpHeight = 80;
+        let originalY = player.y;
+  
+        const jumpInterval = setInterval(() => {
+          if (jumpIndex < jumpFrames.length) {
+            player.setTexture(jumpFrames[jumpIndex]);
+            if (jumpIndex === 1) player.y = originalY - jumpHeight;
+            else if (jumpIndex === 2) player.y = originalY - jumpHeight / 2;
+            else if (jumpIndex >= 3) player.y = originalY;
+            jumpIndex++;
+          } else {
+            clearInterval(jumpInterval);
+            player.setTexture('user_ori');
+            player.y = originalY;
+          }
+        }, 100);
+      }
+  
+      function performSit() {
+        if (walkTimer || isSitting) return;
+  
+        isSitting = true;
+        let sitFrames = ['sit1', 'sit2', 'sit3'];
+        let index = 0;
+  
+        sitTimer = setInterval(() => {
+          if (index < sitFrames.length) {
+            player.setTexture(sitFrames[index]);
+            player.y = fixedY;
+            index++;
+          } else {
+            clearInterval(sitTimer);
+            player.setTexture('sit3');
+            player.y = fixedY;
+          }
+        }, 150);
+      }
+  
+      function standUp() {
+        let sitFrames = ['sit3', 'sit2', 'sit1'];
+        let index = 0;
+  
+        const standTimer = setInterval(() => {
+          if (index < sitFrames.length) {
+            player.setTexture(sitFrames[index]);
+            player.y = fixedY;
+            index++;
+          } else {
+            clearInterval(standTimer);
+            player.setTexture('user_ori');
+            player.y = fixedY;
+            isSitting = false;
+          }
+        }, 150);
+      }
+  
+      document.getElementById('left').addEventListener('mousedown', () => startWalking.call(this, 'left'));
+      document.getElementById('right').addEventListener('mousedown', () => startWalking.call(this, 'right'));
+      document.getElementById('left').addEventListener('mouseup', stopWalking);
+      document.getElementById('right').addEventListener('mouseup', stopWalking);
+      document.getElementById('left').addEventListener('mouseleave', stopWalking);
+      document.getElementById('right').addEventListener('mouseleave', stopWalking);
+  
+      document.getElementById('up').addEventListener('click', () => {
+        if (isSitting) {
+          standUp();
+        } else {
+          performJump();
+        }
+      });
+  
+      document.getElementById('down').addEventListener('click', performSit);
+    };
+  
+    MainScene.prototype.update = function () {
+      if (player) {
+        player.y = fixedY;
+      }
+    };
+  
+    SecondScene.prototype.create = function () {
+  fixedY = config.height - 67;
+  fixedY1 = config.height - 328;
+
+
+  this.add.image(config.width / 2, config.height / 2, 'background2')
+    .setDisplaySize(config.width, config.height);
+
+  const chatBoxWidth = 300;
+  const chatBoxMargin = 20;
+  const spacing = 20;
+
+  const npc2X = chatBoxWidth + chatBoxMargin + spacing;
+
+  const npc2 = this.add.image(npc2X + 40, config.height - 55, 'npc2')
+  .setScale(0.7)
+  .setOrigin(0, 1); 
+npc2.flipX = true;
+
+
+  
+  player2 = this.add.sprite(config.width + 50, fixedY, 'user_ori')
+    .setScale(1)
+    .setOrigin(0.5, 1);
+
+  let currentFrame2 = 1;
+  let walkTimer2 = null;
+  let isSitting2 = false;
+  let direction2 = null;
+
+  const startWalking2 = (dir) => {
+    if (isSitting2) return;
+    direction2 = dir;
+    if (walkTimer2) return;
+
+    walkTimer2 = setInterval(() => {
+      currentFrame2 = (currentFrame2 % 6) + 1;
+      player2.setTexture(`walk${currentFrame2}`);
+
+      if (dir === 'left') {
+        player2.x -= 15;
+        player2.flipX = true;
+      } else if (dir === 'right') {
+        player2.x += 15;
+        player2.flipX = false;
+      }
+
+      player2.y = fixedY;
+
+      if (player2.x > config.width + 50) {
+        clearInterval(walkTimer2);
+        walkTimer2 = null;
+        direction2 = null;
+        returningFromSecondScene = true;
+this.scene.start('MainScene');
+
+      }
+    }, 100);
+  };
+
+  const stopWalking2 = () => {
+    clearInterval(walkTimer2);
+    walkTimer2 = null;
+    direction2 = null;
+
+    if (!isSitting2) {
+      player2.setTexture('user_ori');
+      player2.y = fixedY;
+    }
+  };
+
+  const performJump2 = () => {
+  if (walkTimer2 || isSitting2) return;
+
+  let jumpFrames = ['jump1', 'jump2', 'jump3', 'jump4', 'happyjump'];
+  let jumpIndex = 0;
+  let jumpHeight = 80;
+  let originalY = fixedY; 
+
+  const jumpInterval = setInterval(() => {
+    if (jumpIndex < jumpFrames.length) {
+      player2.setTexture(jumpFrames[jumpIndex]);
+
+      if (jumpIndex === 1) {
+        player2.y = originalY - jumpHeight;
+      } else if (jumpIndex === 2) {
+        player2.y = originalY - jumpHeight / 2;
+      } else if (jumpIndex >= 3) {
+        player2.y = originalY;
+      }
+
+      jumpIndex++;
+    } else {
+      clearInterval(jumpInterval);
+      player2.setTexture('user_ori');
+      player2.y = originalY;
+    }
+  }, 100);
+};
+
+
+  const performSit2 = () => {
+    if (walkTimer2 || isSitting2) return;
+    isSitting2 = true;
+
+    let sitFrames = ['sit1', 'sit2', 'sit3'];
+    let index = 0;
+
+    const sitInterval = setInterval(() => {
+      if (index < sitFrames.length) {
+        player2.setTexture(sitFrames[index]);
+        player2.y = fixedY;
+        index++;
+      } else {
+        clearInterval(sitInterval);
+        player2.setTexture('sit3');
+        player2.y = fixedY;
+      }
+    }, 150);
+  };
+
+  const standUp2 = () => {
+    let sitFrames = ['sit3', 'sit2', 'sit1'];
+    let index = 0;
+
+    const standInterval = setInterval(() => {
+      if (index < sitFrames.length) {
+        player2.setTexture(sitFrames[index]);
+        player2.y = fixedY;
+        index++;
+      } else {
+        clearInterval(standInterval);
+        player2.setTexture('user_ori');
+        player2.y = fixedY;
+        isSitting2 = false;
+      }
+    }, 150);
+  };
+
+  
+  document.getElementById('left').onclick = () => startWalking2('left');
+  document.getElementById('right').onclick = () => startWalking2('right');
+  document.getElementById('left').onmouseup = stopWalking2;
+  document.getElementById('right').onmouseup = stopWalking2;
+  document.getElementById('left').onmouseleave = stopWalking2;
+  document.getElementById('right').onmouseleave = stopWalking2;
+  document.getElementById('up').onclick = () => isSitting2 ? standUp2() : performJump2();
+  document.getElementById('down').onclick = performSit2;
+};
+
+
+
+    
+  </script>
+  
+</body>
+</html>
