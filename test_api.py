@@ -6,9 +6,9 @@ print("Welcome to the Fantasy NPC Chat!")
 print("Type 'exit' or 'quit' to end the session.\n")
 
 while True:
-    message = input("👤 You: ")
+    message = input("You: ")
     if message.lower() in ['exit', 'quit']:
-        print("👋 Exiting...")
+        print("Exiting...")
         break
 
     try:
@@ -19,8 +19,8 @@ while True:
 
         if response.status_code == 200:
             data = response.json()
-            print(f"🤖 NPC: {data['npc_reply']}")
+            print(f"NPC: {data['npc_reply']}")
         else:
-            print("❌ Error:", response.json().get("error", "Unknown error"))
+            print("Error:", response.json().get("error", "Unknown error"))
     except Exception as e:
-        print("⚠ Exception occurred:", str(e))
+        print("Exception occurred:", str(e))
