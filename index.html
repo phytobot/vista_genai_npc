@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,6 +7,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Character Movement Game with Chat</title>
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.js"></script>
+  <script defer src="game.js"></script>
   <style>
     body {
       margin: 0;
@@ -526,7 +529,61 @@ this.scene.start('MainScene');
   document.getElementById('up').onclick = () => isSitting2 ? standUp2() : performJump2();
   document.getElementById('down').onclick = performSit2;
 };
+  document.getElementById('chat-send').addEventListener('click', async () => {
+  const input = document.getElementById('chat-input');
+  const chatBox = document.getElementById('chat-box');
+  const msg = input.value.trim();
 
+  if (msg !== '') {
+    // Add user message to chat box
+    const userMsgDiv = document.createElement('div');
+    userMsgDiv.className = 'chat-msg user-msg';
+    userMsgDiv.textContent = msg;
+    chatBox.appendChild(userMsgDiv);
+    chatBox.scrollTop = chatBox.scrollHeight;
+    input.value = '';
+
+    // Add loading message
+    const loadingMsgDiv = document.createElement('div');
+    loadingMsgDiv.className = 'chat-msg npc-msg';
+    loadingMsgDiv.textContent = 'Trevor is thinking...';
+    chatBox.appendChild(loadingMsgDiv);
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    try {
+      // Send message to backend
+      const response = await fetch('http://localhost:5000/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message: msg })
+      });
+
+      const data = await response.json();
+
+      // Replace loading message with real reply
+      loadingMsgDiv.textContent = 'Trevor: ' + data.npc_reply;
+
+      // Play audio if available
+      if (data.audio_url) {
+        const audio = new Audio('http://localhost:5000' + data.audio_url);
+        audio.play();
+      }
+    } catch (error) {
+      loadingMsgDiv.textContent = 'Error: Could not contact Trevor.';
+      console.error('Fetch error:', error);
+    }
+  }
+});
+
+// Allow Enter key to send message
+document.getElementById('chat-input').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    document.getElementById('chat-send').click();
+  }
+});
 
 
     
